@@ -122,6 +122,28 @@ func StartServer(db *sql.DB) {
 		handler,
 	)
 
+	r.GET("/api/v1/user_schema",
+		func(c *gin.Context) {
+			rows, err := db.Query(`SELECT schema FROM schemas WHERE schema_name = 'user_schema' LIMIT 1;`)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			defer rows.Close()
+			if !rows.Next() {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Schema not found"})
+				return
+			}
+			var schema string
+			err = rows.Scan(&schema)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusOK, schema)
+		},
+	)
+
 	fmt.Println("Server running at http://localhost:6701")
 
 	r.Run(":6701")
