@@ -2,6 +2,7 @@ package models
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
 	"reflect"
@@ -27,31 +28,38 @@ func InitializeDatabase(db *sql.DB) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	schema, err := db.Query(`SELECT * FROM schemas WHERE schema_name = 'user_schema';`)
+	tempRows, err := db.Query(`SELECT * FROM schemas WHERE schema_name = 'user_schema';`)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer schema.Close()
-	if !schema.Next() {
+	defer tempRows.Close()
+	if !tempRows.Next() {
 		fmt.Println("No user schema found, creating using default schema...")
 		if err != nil {
 			log.Fatal(err)
 		}
-		exSchem := adminUserSchemaFormatter()
-		fmt.Println("Default schema: ", exSchem)
-	}
-
-}
-
-func adminUserSchemaFormatter() map[string]map[string]string {
-	var schema = make(map[string]map[string]string)
-	defaultSchema := reflect.TypeOf(&DefaultUserSchema{}).Elem()
-	for i := 0; i < defaultSchema.NumField(); i++ {
-		field := defaultSchema.Field(i)
-		schema[field.Name] = make(map[string]string)
-		for _, schemaField := range SchemaFields {
-			schema[field.Name][schemaField] = field.Tag.Get(schemaField)
+		schema := make(map[string]map[string]string)
+		defaultSchema := reflect.TypeOf(&DefaultUserSchema{}).Elem()
+		for i := 0; i < defaultSchema.NumField(); i++ {
+			field := defaultSchema.Field(i)
+			schema[field.Name] = make(map[string]string)
+			for _, schemaField := range SchemaFields {
+				schema[field.Name][schemaField] = field.Tag.Get(schemaField)
+			}
+		}
+		fmt.Println("Default schema: ", schema)
+		stmt, err := db.Prepare(`INSERT INTO schemas (schema_name, schema) VALUES (?, ?);`)
+		if err != nil {
+			log.Fatal(err)
+		}
+		marshalledSchema, err := json.Marshal(schema)
+		if err != nil {
+			log.Fatal(err)
+		}
+		_, err = stmt.Exec("user_schema", marshalledSchema)
+		if err != nil {
+			log.Fatal(err)
 		}
 	}
-	return schema
+
 }
